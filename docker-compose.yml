@@ -1,0 +1,7 @@
+services:
+  ingestion:
+    build: ./ingestion
+    volumes:
+      - ./data:/data
+    stdin_open: true
+    tty: true
