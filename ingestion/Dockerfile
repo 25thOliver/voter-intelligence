@@ -10,5 +10,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY locate_county.py .
+COPY debug_page.py .
 
 CMD ["python", "locate_county.py"]
