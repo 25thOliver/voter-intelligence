@@ -5,54 +5,61 @@ PDF_PATH = "/data/raw/registered_voters_2017.pdf"
 TARGET_COUNTY_CODE = "040"          
 TARGET_COUNTY_NAME_PREFIX = "BUSI"  # backup check, tolerant of truncation
 
-def find_county_pages(pdf_path, target_county, max_pages_to_scan=None):
-    """
-    Scans the PDF page by page, checking the first table's rows for the
-    target county name. Prints page numbers where it appears.
-    Stops scanning once we've found the county AND then left it
-    (since counties appear to be in contiguous blocks).
-    """
-    found_pages = []
-    in_target_block = False
+
+def row_matches_target(row):
+    if not row or len(row) < 2:
+        return False
+    code = (row[0] or "").strip()
+    name = (row[1] or "").strip().upper()
+    return code == TARGET_COUNTY_CODE or name.startswith(TARGET_COUNTY_NAME_PREFIX)
+
+
+def find_county_rows(pdf_path):
+    matched_pages = []
+    sample_rows = []
+    in_block = False
+    consecutive_misses = 0
 
     with pdfplumber.open(pdf_path) as pdf:
         total_pages = len(pdf.pages)
-        print(f"Total pages in PDF: {total_pages}")
+        print(f"Total pages: {total_pages}")
 
-        pages_to_scan = total_pages if not max_pages_to_scan else min(max_pages_to_scan, total_pages)
+        for i, page in enumerate(pdf.pages):
+            tables = page.extract_tables()  # ALL tables on the page, not just first
+            page_has_match = False
 
-        for i in range(pages_to_scan):
-            page = pdf.pages[i]
-            text = page.extract_text() or ""
+            for table in tables:
+                for row in table:
+                    if row_matches_target(row):
+                        page_has_match = True
+                        if len(sample_rows) < 10:
+                            sample_rows.append((i + 1, row))
 
-            if target_county in text.upper():
-                found_pages.append(i+1)
-                in_target_block = True
-            elif in_target_block:
-                print(f"Appears to exit {target_county} block after page {i}")
-                break
+            if page_has_match:
+                matched_pages.append(i + 1)
+                in_block = True
+                consecutive_misses = 0
+            elif in_block:
+                consecutive_misses += 1
+                if consecutive_misses >= 3:
+                    print(f"Exiting block — 3 consecutive non-matching pages after page {i + 1}")
+                    break
 
             if i % 50 == 0:
-                print(f"Scanned page {i+1}/{pages_to_scan}...")
+                print(f"Scanned {i + 1}/{total_pages}...")
 
-    return found_pages
+    return matched_pages, sample_rows
+
 
 if __name__ == "__main__":
-    pages = find_county_pages(PDF_PATH, TARGET_COUNTY)
+    pages, samples = find_county_rows(PDF_PATH)
 
     if pages:
-        print(f"\n{TARGET_COUNTY} found on pages: {pages[0]} to {pages[-1]} ({len(pages)} pages)")
-
-        with pdfplumber.open(PDF_PATH) as pdf:
-            sample_page = pdf.pages[pages[0] - 1]
-            table = sample_page.extract_table()
-
-            if table:
-                print(f"\nSample table from page {pages[0]} (first 5 rows):")
-                for row in table[:5]:
-                    print(row)
-            else:
-                print("No table detected on this page — may need different extraction settings.")
+        is_contiguous = pages == list(range(pages[0], pages[-1] + 1))
+        print(f"\nMatched pages: {pages[0]} to {pages[-1]} ({len(pages)} pages, contiguous={is_contiguous})")
+        print("\nSample matched rows:")
+        for p, r in samples:
+            print(f"  page {p}: {r}")
     else:
-        print(f"{TARGET_COUNTY} not found. You may need to check spelling/encoding, or scan full document.")
+        print("No matches found.")
         sys.exit(1)
