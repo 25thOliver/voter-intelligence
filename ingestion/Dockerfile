@@ -11,5 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY locate_county.py .
 COPY debug_page.py .
+COPY debug_tolerance.py .
 
 CMD ["python", "locate_county.py"]
