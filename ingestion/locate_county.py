@@ -2,7 +2,8 @@ import pdfplumber
 import sys
 
 PDF_PATH = "/data/raw/registered_voters_2017.pdf"
-TARGET_COUNTY = "BUSIA"
+TARGET_COUNTY_CODE = "040"          
+TARGET_COUNTY_NAME_PREFIX = "BUSI"  # backup check, tolerant of truncation
 
 def find_county_pages(pdf_path, target_county, max_pages_to_scan=None):
     """
